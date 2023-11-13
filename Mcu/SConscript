@@ -1,0 +1,12 @@
+# RT-Thread building script for component
+from building import *
+
+cwd     = GetCurrentDir()
+src     = Glob('*.c') + Glob('*.S')
+#libs    = ['airkiss']
+libpath = [cwd]
+CPPPATH = [os.path.join(cwd)]
+# 
+group = DefineGroup('test', src, depend = [''], CPPPATH = CPPPATH,LIBPATH = libpath)
+# objs = objs + group
+Return('group')
