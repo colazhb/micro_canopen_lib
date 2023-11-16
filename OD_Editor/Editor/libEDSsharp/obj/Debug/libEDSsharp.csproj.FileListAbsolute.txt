@@ -1,0 +1,13 @@
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\libEDSsharp.dll
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\libEDSsharp.pdb
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\obj\Debug\libEDSsharp.csproj.AssemblyReference.cache
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\obj\Debug\libEDSsharp.csproj.CoreCompileInputs.cache
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\obj\Debug\libEDSsharp.dll
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\obj\Debug\libEDSsharp.pdb
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\Flurl.dll
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\Flurl.Http.dll
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\Newtonsoft.Json.dll
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\Flurl.xml
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\Flurl.Http.xml
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\bin\Debug\Newtonsoft.Json.xml
+E:\GITHUB\CANOPEN\CANopenEditor\libEDSsharp\obj\Debug\libEDSsharp.csproj.CopyComplete
