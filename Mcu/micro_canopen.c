@@ -32,9 +32,8 @@ void micro_canopen_print_od(struct micro_canopen_obj_t *obj , uint8_t od_id)
     rt_kprintf("index: %x\r\n", obj->od_items[od_id].index);
     rt_kprintf("subindex: %x\r\n", obj->od_items[od_id].subindex);
     rt_kprintf("data_type: %x\r\n", obj->od_items[od_id].data_type);
-    rt_kprintf("value: %x\r\n", obj->od_items[od_id].value);
-    rt_kprintf("write_value: %x\r\n", obj->od_items[od_id].write_value);
-    rt_kprintf("read_value: %x\r\n", obj->od_items[od_id].read_value);
+    rt_kprintf("value: %x\r\n", obj->node_val[od_id]);
+
     rt_kprintf("--------------------------------------\r\n");
 
 }
@@ -53,10 +52,10 @@ uint8_t micro_canopen_get_od_id_by_index(struct micro_canopen_obj_t *obj, uint16
 };
 
 
-// 获取字典中的数据
-uint32_t micro_canopen_od_read_value(struct micro_canopen_obj_t *obj, uint16_t od_id)
+// 获取obj的数据
+uint32_t micro_canopen_obj_read_value(struct micro_canopen_obj_t *obj, uint16_t od_id)
 {
-    return obj->od_items[od_id].value;
+    return obj->node_val[od_id];
 };
 
 // 更新字典中的数据
@@ -227,10 +226,12 @@ void micro_canopen_send_sync(struct micro_canopen_obj_t *obj)
  * @param  *obj: canopen对象
  * @retval None
  */
-void micro_canopen_init(struct micro_canopen_obj_t *obj)
+void micro_canopen_init(struct micro_canopen_obj_t *obj,uint8_t node_id,uint8_t od_count)
 {
 
     // 配置文件
+    obj->node_id = node_id;
+    obj->node_val = rt_malloc(sizeof(uint32_t) * od_count);
 
     obj->od_items = &od_items[0];
 
@@ -390,30 +391,55 @@ void micro_canopen_pdo_init(struct micro_canopen_obj_t *obj, uint8_t pdo_type)
             continue;
         }
         sub_start++;
-
-        // 触发方式
-        if (p_cfg->trigger_type == 0)
+        
+        if(pdo_type != PDO_TYPE_RPDO)
         {
-            // 定时触发
-            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 2, SDO_CMD_SET_1BYTE, 0xff);
+            /*
+            传输类型
+            异步传输——由事件触发传输，包括数据改变触发、周期性事件定时器触发；
+            同步传输——网络中同步帧有关。
 
-            // 设置定时时间 500ms
-            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 5, SDO_CMD_SET_2BYTE, p_cfg->trigger_time);
-        }
-        else
-        {
-            // 行为触发
-            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 2, SDO_CMD_SET_1BYTE, 0x00);
+            1）当 TPDO 传输类型为 0 时，如果映射对象的数据发生改变，且接收到一个同步帧，则发送该 TPDO；
+            2）当 TPDO 的传输类型为 1~240 时，接收到相应个数的同步帧时，发送该 TPDO。
+            3）当 TPDO 的传输类型是 254 或 255 时，映射数据发生改变或者事件计时器到达则发送该 TPDO。
+            4）当 RPDO 的传输类型为 0~240 时，只要接收到一个同步帧则将该 RPDO 最新的数据更新到应用；当 RPDO 的传输类型为 254 或者 255 时，将接收到的数据直接更新到应用。
+            [00] 非循环同步
+            [01] 循环同步
+            [FC] 远程同步
+            [FD] 远程异步
+            [FE] 异步(制造商特定事件)
+            [FF] 同步(制造商特定事件)
+            */
+            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 2, SDO_CMD_SET_1BYTE, p_cfg->transmission_type);
 
-            // 设置触发行为
-            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 3, SDO_CMD_SET_1BYTE, p_cfg->trigger_action);
+            /*
+            禁止时间
+            针对 TPDO 设置了禁止时间，存放在通信参数(1800h~1803h) 的子索引 03 上，防止CAN 网络被优先级较高的 PDO 持续占有。
+            该参数的单位是 100us，设置数值后，同一个TPDO 传输间隔减不得小于该参数对应的时间。
+            例如：TPDO2 的禁止时间为 300，则 TPDO 的传输间隔不会小于 30ms。
+            */
+            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 3, SDO_CMD_SET_2BYTE, p_cfg->inhibit_time);     
+
+            /*
+            事件计时器
+            针对异步传输( 传输类型为 254 或 255) 的 TPDO，定义事件计时器，位于通信参数(1800h~1803h) 的子索引 05 上，单位为 500us。
+            事件计时器也可以看做是一种触发事件，它也会触发相应的 TPDO 传输。
+            如果在计时器运行周期内出现了数据改变等其它事件，TPDO也会触发，且事件计数器会被立即复位。
+
+            如果这个时间为 0，则这个 PDO 为事件改变发送。
+            */   
+            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 5, SDO_CMD_SET_2BYTE, p_cfg->event_timer);
+
+            /*
+            SYNC start value 
+            同步起始值：同步传输的 PDO，收到诺干个同步包后，才进行发送，这个同步起始值就是同步包数量。
+            比如设置为 2，即收到 2 个同步包后才进行发送。
+            */
+            micro_canopen_pack_sdo_data(obj, pdo_cp_index, 6, SDO_CMD_SET_1BYTE, p_cfg->sync_start);
         }
 
         // 开启映射
-        micro_canopen_pack_sdo_data(obj, pdo_mp_index, 0, SDO_CMD_SET_1BYTE, sub_count);
-
-        // 保存配置到 eeprom
-        // micro_canopen_pack_sdo_data(obj, pdo_cp_index, 0, SDO_CMD_SET_2BYTE, p_cfg->save_to_eeprom);
+        micro_canopen_pack_sdo_data(obj, pdo_mp_index, 0, SDO_CMD_SET_1BYTE, p_cfg->count);
 
         pdo_cp_index++;
         pdo_mp_index++;
@@ -449,12 +475,20 @@ void micro_canopen_sdo_data_decode(struct micro_canopen_obj_t *obj,uint8_t *data
         uint8_t subindex = obj->od_items[od_index].subindex;
         if(index == obj->recv_sdo.recv_sdo_index && subindex == obj->recv_sdo.recv_sdo_subindex)
         {
-            obj->od_items[od_index].value = obj->recv_sdo.recv_sdo_data;
-        }        
+            obj->node_val[od_index] = obj->recv_sdo.recv_sdo_data;
+        } 
 
     }
     obj->recv_sdo_flag = 1;
 
+}
+uint16_t micro_canopen_canid_to_cobid(uint32_t canid)
+{
+    return (uint16_t)(canid & 0xff80);
+}
+uint8_t micro_canopen_canid_to_nodeid(uint32_t canid)
+{
+    return (uint8_t)(canid & 0x7f);
 }
 /**
  * @brief  将CAN数据解析成OD数据
@@ -467,9 +501,9 @@ void micro_canopen_sdo_data_decode(struct micro_canopen_obj_t *obj,uint8_t *data
 void micro_canopen_data_unpack(struct micro_canopen_obj_t *obj, uint32_t index, uint8_t *data, uint8_t len)
 {
     uint16_t fun_id = 0;
-    uint8_t node_id = 0;
-    fun_id = (uint16_t)(index & 0xff80);
-    node_id = (uint8_t)(index & 0x7f);
+    uint8_t node_id = 0;    
+    fun_id =  micro_canopen_canid_to_cobid(index);
+    node_id = micro_canopen_canid_to_nodeid(index);
 
     // 将CAN数据解析成OD数据
     switch (fun_id)
@@ -653,7 +687,7 @@ void micro_canopen_od_wrtie_value(struct micro_canopen_obj_t *obj, uint16_t od_i
     struct micro_canopen_od_items *items;
     uint8_t data_buf[8];
     items = &obj->od_items[od_id];
-    items->write_value = val;
+    //items->write_value = val;
     uint8_t cmd = micro_canopen_data_type_to_sdo_cmd(items->data_type);
 
     // 数据类型
@@ -738,8 +772,8 @@ void micro_canopen_rpdo_wrie_value(struct micro_canopen_obj_t *obj, uint16_t rpo
     uint32_t od_id = items->od_id;
     uint8_t data_type = obj->od_items[od_id].data_type;
 
-    // 写入字典
-    obj->od_items[od_id].write_value = val;
+    // 写入值
+    //obj->od_items[od_id].write_value = val;
 
     // 写入 raw map 数据
     uint8_t data_len = micro_canopen_data_type_to_data_len(data_type);

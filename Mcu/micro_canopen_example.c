@@ -26,11 +26,11 @@ int can_sample();
 void canopen_write_speed(int32_t left_speed, int32_t right_speed, int32_t left_acc, int32_t right_acc, int32_t left_dec, int32_t right_dec)
 {
     // 通过写rpdo的方式写入速度
-    micro_canopen_rpdo_wrie_value(&canopen_obj, RPOD_ID_TARGET_SPEED_LEFT_RIGHT, (uint32_t)(right_speed << 16 | left_speed));
-    micro_canopen_rpdo_wrie_value(&canopen_obj, RPOD_ID_S_SHAPE_ACCELERATION_TIME_LEFT, (uint32_t)(left_acc));
-    micro_canopen_rpdo_wrie_value(&canopen_obj, RPOD_ID_S_SHAPE_ACCELERATION_TIME_RIGHT, (uint32_t)(left_acc));
-    micro_canopen_rpdo_wrie_value(&canopen_obj, RPOD_ID_S_SHAPE_DECELERATION_TIME_LEFT, (uint32_t)(left_dec));
-    micro_canopen_rpdo_wrie_value(&canopen_obj, RPOD_ID_S_SHAPE_DECELERATION_TIME_RIGHT, (uint32_t)(left_dec));
+    micro_canopen_rpdo_wrie_value(&canopen_obj, RPDO_ID_TARGET_VELOCITY_SUB3, (uint32_t)(right_speed << 16 | left_speed));
+    micro_canopen_rpdo_wrie_value(&canopen_obj, RPDO_ID_LEFT_MOTOR_PROFILE_ACCELERATION, (uint32_t)(left_acc));
+    micro_canopen_rpdo_wrie_value(&canopen_obj, RPDO_ID_RIGHT_MOTOR_PROFILE_ACCELERATION, (uint32_t)(left_acc));
+    micro_canopen_rpdo_wrie_value(&canopen_obj, RPDO_ID_LEFT_MOTOR_PROFILE_DECELERATION, (uint32_t)(left_dec));
+    micro_canopen_rpdo_wrie_value(&canopen_obj, RPDO_ID_RIGHT_MOTOR_PROFILE_DECELERATION, (uint32_t)(left_dec));
 };
 void canopen_read_pdo_test()
 {
@@ -38,26 +38,26 @@ void canopen_read_pdo_test()
 
     // 通过读取rpdo的方式读取速度
 
-    micro_canopen_tpdo_read_value(&canopen_obj, TPOD_ID_ACTUAL_SPEED_FEEDBACK_LEFT_AND_RIGHT, &read_val);
+    micro_canopen_tpdo_read_value(&canopen_obj, TPDO_ID_VELOCITY_ACTUAL_SUB3, &read_val);
 
     rt_kprintf("TPOD_ID_ACTUAL_SPEED_FEEDBACK_LEFT_AND_RIGHT  l:%ld   r:%ld\n", (int16_t)(read_val & 0xffff), (int16_t)(read_val >> 16));
 
-    micro_canopen_tpdo_read_value(&canopen_obj, TPOD_ID_DRIVER_LAST_FAULT_CODE, &read_val);
+    micro_canopen_tpdo_read_value(&canopen_obj, TPDO_ID_ERROR_CODE, &read_val);
     rt_kprintf("TPOD_ID_DRIVER_LAST_FAULT_CODE: %ld\n", read_val);
 
-    micro_canopen_tpdo_read_value(&canopen_obj, TPOD_ID_ACTUAL_POSITION_FEEDBACK_LEFT, &read_val);
+    micro_canopen_tpdo_read_value(&canopen_obj, TPDO_ID_LEFT_MOTOR_POSITION_ACTUAL_VALUE, &read_val);
     rt_kprintf("TPOD_ID_ACTUAL_POSITION_FEEDBACK_LEFT: %ld\n", read_val);
 
-    micro_canopen_tpdo_read_value(&canopen_obj, TPOD_ID_ACTUAL_POSITION_FEEDBACK_RIGHT, &read_val);
+    micro_canopen_tpdo_read_value(&canopen_obj, TPDO_ID_RIGHT_MOTOR_POSITION_ACTUAL_VALUE, &read_val);
     rt_kprintf("TPOD_ID_ACTUAL_POSITION_FEEDBACK_RIGHT: %ld\n", read_val);
 
-    micro_canopen_tpdo_read_value(&canopen_obj, TPOD_ID_CONTROL_WORD, &read_val);
+    micro_canopen_tpdo_read_value(&canopen_obj, TPDO_ID_CONTROLWORD, &read_val);
     rt_kprintf("TPOD_ID_CONTROL_WORD: %ld\n", read_val);
 };
 
 void micro_canopen_dev_init()
 {
-    canopen_obj.node_id = 0x01;           // 节点ID
+
     canopen_obj.bandrate = 500;           // 500k
     canopen_obj.main_period_ms = 1;       // 1ms
     canopen_obj.sync_time = 500;          // 500ms 同步一次
@@ -66,9 +66,9 @@ void micro_canopen_dev_init()
     // CAN 回调
     canopen_obj.can_send = user_can_send;
 
-    // 初始化canopen
-    micro_canopen_init(&canopen_obj);
-
+    // 初始化canopen 1 个 node 从机节点
+    micro_canopen_init(&canopen_obj,1,OD_ID_MAX);
+   
     // 预操作
     micro_canopen_nmt(&canopen_obj, NMT_PREOP, 0);
 
@@ -76,29 +76,29 @@ void micro_canopen_dev_init()
     micro_canopen_pdo_init(&canopen_obj, PDO_TYPE_TPDO);
     micro_canopen_pdo_init(&canopen_obj, PDO_TYPE_RPDO);
 
-    // 电机模式操作
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_OPERATION_MODE, 0x03); // 速度模式
+    // // 电机模式操作
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_MODES_OF_OPERATION, 0x03); // 速度模式
 
-    // 异常清除
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROL_WORD, 0x80); // 清除故障
+    // // 异常清除
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROLWORD, 0x80); // 清除故障
 
-    // 反馈位置清零
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_FEEDBACK_POSITION_CLEAR, 3); // 反馈位置清零    
+    // // 反馈位置清零
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CLEAR_FEEDBACK_POSITION, 3); // 反馈位置清零    
 
-    // 6040 控制字操作  00->06->07->0F
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROL_WORD, 0x00);
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROL_WORD, 0x06);
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROL_WORD, 0x07);
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROL_WORD, 0x0F);
+    // // 6040 控制字操作  00->06->07->0F
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROLWORD, 0x00);
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROLWORD, 0x06);
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROLWORD, 0x07);
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_CONTROLWORD, 0x0F);
 
-    // 设置同步模式
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_SYNCHRONOUS_ASYNCHRONOUS_CONTROL_FLAG, 0x01); // 同步模式
+    // // 设置同步模式
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_SYN_CONTROL, 0x01); // 同步模式
 
-    // 设置心跳时间 0.5ms 单位
+    // // 设置心跳时间 0.5ms 单位
     micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_PRODUCER_HEARTBEAT_TIME, 200); // 100ms 心跳时间
 
-    // 通讯断开保护时间
-    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_COMMUNICATION_TIMEOUT, 200); // 200ms 保护
+    // // 通讯断开保护时间
+    micro_canopen_od_wrtie_value(&canopen_obj, OD_ID_OFFLINE_COMMUNICATION_PARAMETER, 200); // 200ms 保护
 
     
 
@@ -121,6 +121,14 @@ void micro_canopen_thread_entry(void *parameter)
     }
 };
 
+void can_device_read(struct micro_canopen_obj_t *obj, uint32_t id, uint8_t *data, uint8_t len)
+{
+    uint8_t node_id = micro_canopen_canid_to_nodeid(id);
+    if(node_id == 1)
+    {
+        micro_canopen_can_data_push(&canopen_obj, id, data, len);
+    }       
+}
 void micro_canopen_thread_init()
 {
     rt_thread_t tid;
@@ -294,7 +302,7 @@ static void can_rx_thread(void *parameter)
         // }
 
         // rt_kprintf("\n");
-        micro_canopen_can_data_push(&canopen_obj, rxmsg.id, rxmsg.data, rxmsg.len);
+        can_device_read(&canopen_obj, rxmsg.id, rxmsg.data, rxmsg.len);
     }
 }
 

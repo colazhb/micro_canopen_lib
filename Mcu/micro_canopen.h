@@ -43,31 +43,35 @@ enum
     OD_DATA_TYPE_UINT16 = 0x06,
     OD_DATA_TYPE_UINT32 = 0x07,
     OD_DATA_TYPE_REAL32 = 0x08,
-
+    OD_DATA_TYPE_UNKNOWN = 0xff,
 };
 // 读写类型
 enum
 {
-    OD_RW_ACCESS_RO = 0x01,
-    OD_RW_ACCESS_WO = 0x02,
-    OD_RW_ACCESS_RW = 0x03,
+    OD_RW_ACCESS_RW,
+    OD_RW_ACCESS_RO,
+    OD_RW_ACCESS_WO,
+    OD_RW_ACCESS_RWR,
+    OD_RW_ACCESS_RWW,
+    OD_RW_ACCESS_C,
 };
 
-// 序号,索引,子索引,数据类型,访问权限,数据值,读取值,写入值,最小值,最大值,单位,参数名,参数描述
+// 序号,索引,子索引,数据类型,数据长度,参数名
 struct micro_canopen_od_items
 {
     uint16_t index;
     uint8_t subindex;
     uint8_t data_type;
-    uint8_t access;
-    uint32_t value;
-    uint32_t read_value;
-    uint32_t write_value;
-    uint32_t min;
-    uint32_t max;
-    uint32_t unit;
+    uint8_t data_len;
+    // uint8_t access;
+    // uint32_t value;
+    // uint32_t read_value;
+    // uint32_t write_value;
+    // uint32_t min;
+    // uint32_t max;
+    // uint32_t unit;
     char *name;
-    char *desc;
+    // char *desc;
 };
 
 /*-------------------------- 字典部分结束 ------------------------------*/
@@ -193,18 +197,15 @@ struct micro_canopen_od_pdo_map_t
 /* pdo 配置结构体 */
 struct micro_canopen_pdo_cfg_t
 {
-
-    // 触发类型 定时触发 行为触发
-    uint8_t trigger_type; // 0: 定时触发 1: 行为触发
-
-    // 触发时间
-    uint16_t trigger_time; // 定时触发时间
-
-    // 触发行为
-    uint8_t trigger_action; // 行为触发
-
-    // 是否保存到eeprom
-    uint8_t save_to_eeprom; // 0: 不保存 1: 保存
+    // //   [Index]  [Mapping]   [COB]  [transmissiontype] [inhibit] [eventtimer] [syncstart]  [Count]
+    uint16_t index;
+    uint16_t mapping;
+    uint32_t cob_id;
+    uint8_t transmission_type;
+    uint16_t inhibit_time;
+    uint16_t event_timer;
+    uint8_t sync_start;
+    uint8_t count;  
 };
 
 
@@ -231,6 +232,8 @@ struct micro_canoepn_sdo_t
 struct micro_canopen_obj_t
 {
     /* data */
+    uint32_t *node_val;
+
     uint8_t node_id;               // 节点ID
     uint32_t bandrate;              // 波特率
     uint32_t sync_time;             // 同步时间
@@ -271,7 +274,7 @@ struct micro_canopen_obj_t
 };
 
 
-void micro_canopen_init(struct micro_canopen_obj_t *obj);
+void micro_canopen_init(struct micro_canopen_obj_t *obj,uint8_t node_id,uint8_t od_count);
 void micro_canopen_nmt(struct micro_canopen_obj_t *obj,uint8_t cmd ,uint8_t node_id);
 void micro_canopen_process(struct micro_canopen_obj_t *obj);
 
@@ -288,5 +291,8 @@ uint32_t micro_canopen_od_read_value(struct micro_canopen_obj_t *obj, uint16_t o
 void micro_canopen_od_wrtie_value(struct micro_canopen_obj_t *obj, uint16_t od_id,uint32_t val);
 
 uint8_t micro_canopen_get_od_id_by_index(struct micro_canopen_obj_t *obj, uint16_t index);
+
+uint16_t micro_canopen_canid_to_cobid(uint32_t canid);
+uint8_t  micro_canopen_canid_to_nodeid(uint32_t canid);
 
 #endif /* APPLICATIONS_MICRO_CANOPEN_MICRO_CANOPEN_H_ */
